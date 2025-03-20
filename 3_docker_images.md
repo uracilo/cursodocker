@@ -1,118 +1,162 @@
+# **Guía Paso a Paso: Dockerfile desde Básico hasta Avanzado**
 
-# Dockerfile para Aplicación Segura
+Este documento explica paso a paso cómo construir y optimizar un **Dockerfile**, desde lo básico hasta configuraciones avanzadas.
 
-Este documento detalla los pasos y el código necesario para construir una imagen Docker para una aplicación utilizando buenas prácticas de seguridad y optimización.
+---
 
-## Paso 1: Elegir una Imagen Base
+## **1. Introducción**
+Docker permite empaquetar aplicaciones y sus dependencias en contenedores. Para ello, usamos un **Dockerfile**, que es un archivo de texto con instrucciones para construir la imagen del contenedor.
 
-Se utiliza Alpine por ser una imagen ligera y segura.
+---
 
+## **2. Primer Dockerfile: Imagen Base y Mensaje**
+
+### **Dockerfile**
 ```dockerfile
-# Definir una imagen base ligera
-FROM alpine:latest
-```
-
-## Paso 2: Configurar el Entorno y Herramientas Necesarias
-
-Configuración del directorio de trabajo y instalación de herramientas esenciales como Python y pip.
-
-```dockerfile
-# Establecer un directorio de trabajo seguro
-WORKDIR /app
-
-# Instalar dependencias necesarias
-RUN apk add --no-cache python3 py3-pip
-```
-
-## Paso 3: Copiar Archivos de la Aplicación
-
-Copiar los archivos necesarios al contenedor, asegurándose de usar `.dockerignore` para evitar incluir archivos innecesarios.
-
-```dockerfile
-# Copiar archivos al contenedor
-COPY app/ /app/
-```
-
-## Paso 4: Establecer Usuario No Root
-
-Utilizar un usuario sin privilegios para ejecutar el contenedor, mejorando así la seguridad del mismo.
-
-```dockerfile
-# Crear un usuario sin privilegios y usarlo
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
-```
-
-## Paso 5: Configurar Variables de Entorno y Exponer Puertos
-
-Definir variables de entorno para hacer la configuración más flexible y exponer el puerto necesario.
-
-```dockerfile
-# Configurar variables de entorno
-ENV APP_ENV=production
-
-# Exponer el puerto en el que se ejecuta la app
-EXPOSE 8080
-```
-
-## Paso 6: Definir el Comando de Ejecución
-
-Uso de `exec` en el comando CMD para asegurar que los procesos se manejen adecuadamente.
-
-```dockerfile
-# Usar exec para ejecutar el proceso correctamente
-CMD ["python3", "-m", "http.server", "8080"]
-```
-
-## Paso 7: Optimizar Tamaño y Seguridad
-
-Optimización mediante la instalación de paquetes sin caché y la limpieza de archivos temporales.
-
-```dockerfile
-# Optimización de imagen
-RUN apk add --no-cache --update bash && rm -rf /var/cache/apk/*
-```
-
-## Paso 8: Firmar la Imagen y Escanear Vulnerabilidades
-
-Proceso de construcción y escaneo de la imagen para asegurarse de que esté libre de vulnerabilidades conocidas.
-
-```sh
-# Construcción de la imagen
-docker build -t secure-app .
-
-# Escaneo de vulnerabilidades (con Trivy, por ejemplo)
-trivy image secure-app
-```
-
-
-
-```sh
-# Definir una imagen base ligera
+# Usa una imagen base mínima
 FROM alpine:latest
 
-# Establecer un directorio de trabajo seguro
-WORKDIR /app
-
-# Instalar dependencias necesarias
-RUN apk add --no-cache python3 py3-pip
-
-# Copiar archivos al contenedor
-COPY app/ /app/
-
-# Crear un usuario sin privilegios y usarlo
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
-
-# Configurar variables de entorno
-ENV APP_ENV=production
-
-# Exponer el puerto en el que se ejecuta la app
-EXPOSE 8080
-
-# Usar exec para ejecutar el proceso correctamente
-CMD ["python3", "-m", "http.server", "8080"]
-
-# Optimización de imagen
-RUN apk add --no-cache --update bash && rm -rf /var/cache/apk/*
+# Ejecuta un mensaje por defecto
+CMD ["echo", "¡Hola, mundo desde Docker!"]
 ```
+
+### **Pasos:**
+1. Construir la imagen:
+   ```sh
+   docker build -t hola-mundo .
+   ```
+2. Ejecutar el contenedor:
+   ```sh
+   docker run --rm hola-mundo
+   ```
+
+---
+
+## **3. Agregar Python y Ejecutar un Script**
+
+### **Dockerfile**
+```dockerfile
+FROM python:3.10
+WORKDIR /app
+COPY script.py .
+CMD ["python", "script.py"]
+```
+
+### **Pasos:**
+1. Crear un archivo `script.py` con:
+   ```python
+   print("¡Docker ejecutó este script en Python!")
+   ```
+2. Construir y ejecutar la imagen.
+
+---
+
+## **4. Servidor Web con Flask**
+
+### **Dockerfile**
+```dockerfile
+FROM python:3.10
+WORKDIR /app
+COPY requirements.txt .
+COPY script.py .
+RUN pip install --no-cache-dir -r requirements.txt
+EXPOSE 5000
+CMD ["python", "script.py"]
+```
+
+### **Pasos:**
+1. Crear `requirements.txt` con:
+   ```
+   flask
+   ```
+2. Crear `script.py` con Flask.
+3. Construir y ejecutar con `docker run -p 5000:5000 imagen`.
+
+---
+
+## **5. Diferencia entre COPY y ADD**
+
+| Comando  | Uso principal  | Extrae `.tar` | Descarga archivos remotos |
+|----------|--------------|---------------|---------------------|
+| `COPY`   | Copia archivos del host al contenedor  | ❌ No  | ❌ No |
+| `ADD`    | Copia archivos y permite extras | ✅ Sí | ✅ Sí (no recomendado) |
+
+```dockerfile
+COPY requirements.txt .
+# Alternativa:
+ADD archivo.tar.gz /app/descomprimido/
+```
+
+---
+
+## **6. Agregar Variables de Entorno**
+```dockerfile
+ENV MENSAJE="¡Hola desde un contenedor!"
+CMD ["python", "script.py"]
+```
+```python
+import os
+print(os.getenv("MENSAJE"))
+```
+
+Ejecutar con:
+```sh
+docker run --rm -e MENSAJE="Nuevo mensaje" imagen
+```
+
+---
+
+## **7. Seguridad: Usuario sin Privilegios**
+```dockerfile
+RUN useradd -m myuser
+USER myuser
+```
+
+---
+
+## **8. Construcción Multinivel (Multi-Stage Build)**
+```dockerfile
+FROM python:3.10 AS builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY script.py .
+
+FROM python:3.10-slim AS final
+WORKDIR /app
+COPY --from=builder /app /app
+CMD ["python", "script.py"]
+```
+
+---
+
+## **9. Agregar Healthcheck**
+```dockerfile
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \  
+  CMD curl -f http://localhost:5000 || exit 1
+```
+
+---
+
+## **10. Dockerfile Completo con Todas las Palabras Reservadas**
+```dockerfile
+FROM python:3.10 AS builder
+LABEL maintainer="Tu Nombre <tu@email.com>"
+LABEL description="Imagen de ejemplo con todas las palabras reservadas de Dockerfile"
+LABEL version="1.0"
+WORKDIR /app
+COPY requirements.txt .
+COPY script.py .
+RUN pip install --no-cache-dir -r requirements.txt
+ENV MENSAJE="¡Hola desde un contenedor!"
+RUN useradd -m myuser
+USER myuser
+EXPOSE 5000
+VOLUME ["/app/data"]
+ENTRYPOINT ["python", "script.py"]
+CMD []
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \  
+  CMD curl -f http://localhost:5000 || exit 1
+```
+
+---
